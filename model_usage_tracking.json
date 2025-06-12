@@ -1,0 +1,11 @@
+{
+  "meta-llama/llama-guard-4-12b": {
+    "2025-06-12": 10920
+  },
+  "meta-llama/llama-4-scout-17b-16e-instruct": {
+    "2025-06-12": 10920
+  },
+  "Salesforce/blip-image-captioning-large": {
+    "2025-06-12": 30
+  }
+}
