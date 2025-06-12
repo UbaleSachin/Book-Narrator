@@ -2,7 +2,7 @@ import os
 import sys
 
 # Add your project directory to Python path
-project_home = '/home/yourusername/Book-Narrator'
+project_home = '/home/sachin22/Book-Narrator'
 if project_home not in sys.path:
     sys.path.insert(0, project_home)
 
