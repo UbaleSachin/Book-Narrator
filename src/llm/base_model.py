@@ -30,11 +30,7 @@ class ImageDescriber:
         """Initialize the Hugging Face models and tracking."""
         # Available Hugging Face vision models
         self.models = [
-            "Salesforce/blip-image-captioning-large",
             "Salesforce/blip-image-captioning-base",
-            "microsoft/git-base-coco",
-            "microsoft/git-large-coco",
-            "nlpconnect/vit-gpt2-image-captioning"
         ]
         
         # Filter models based on environment variable if specified
