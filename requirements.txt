@@ -17,4 +17,4 @@ flask
 werkzeug
 gunicorn
 fitz
-PyMuPDF
+pymupdf --upgrade
