@@ -1,0 +1,11 @@
+{
+  "groq": {
+    "meta-llama/llama-4-scout-17b-16e-instruct": {
+      "2025-06-14": 105
+    },
+    "meta-llama/llama-4-maverick-17b-128e-instruct": {
+      "2025-06-14": 4,
+      "2025-06-15": 7
+    }
+  }
+}

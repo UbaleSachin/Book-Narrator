@@ -3,315 +3,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Narrator</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            color: #333;
-        }
-        
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-            animation: slideUp 0.8s ease-out;
-        }
-        
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-            padding: 40px;
-            text-align: center;
-            color: white;
-        }
-        
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-        
-        .content {
-            padding: 40px;
-        }
-        
-        .upload-section {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        
-        .file-upload {
-            position: relative;
-            display: inline-block;
-            margin: 20px 0;
-        }
-        
-        .file-upload input[type="file"] {
-            position: absolute;
-            opacity: 0;
-            width: 100%;
-            height: 100%;
-            cursor: pointer;
-        }
-        
-        .upload-button {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, #4facfe, #00f2fe);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 50px;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: none;
-            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
-        }
-        
-        .upload-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(79, 172, 254, 0.4);
-        }
-        
-        .process-button {
-            background: linear-gradient(135deg, #a8edea, #fed6e3);
-            color: #333;
-            padding: 12px 25px;
-            border: none;
-            border-radius: 25px;
-            font-size: 1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-top: 15px;
-            box-shadow: 0 4px 15px rgba(168, 237, 234, 0.3);
-        }
-        
-        .process-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(168, 237, 234, 0.4);
-        }
-        
-        .section {
-            margin: 30px 0;
-            opacity: 0;
-            animation: fadeIn 0.6s ease-out forwards;
-        }
-        
-        @keyframes fadeIn {
-            to {
-                opacity: 1;
-            }
-        }
-        
-        .section h2 {
-            color: #4a5568;
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .section h2::before {
-            content: "📖";
-            font-size: 1.2em;
-        }
-        
-        .section:nth-child(3) h2::before {
-            content: "🖼️";
-        }
-        
-        .section:nth-child(4) h2::before {
-            content: "🎵";
-        }
-        
-        .preview-image {
-            max-width: 100%;
-            height: auto;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease;
-        }
-        
-        .preview-image:hover {
-            transform: scale(1.02);
-        }
-        
-        .description {
-            background: linear-gradient(135deg, #ffecd2, #fcb69f);
-            padding: 25px;
-            border-radius: 15px;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            font-size: 1.05em;
-            box-shadow: 0 5px 20px rgba(252, 182, 159, 0.3);
-            border-left: 4px solid #ff8a80;
-        }
-        
-        .audio-player {
-            background: linear-gradient(135deg, #d299c2, #fef9d7);
-            padding: 25px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 5px 20px rgba(210, 153, 194, 0.3);
-        }
-        
-        .audio-player audio {
-            width: 100%;
-            max-width: 400px;
-            border-radius: 25px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-        }
-        
-        .loading {
-            display: none;
-            text-align: center;
-            padding: 20px;
-        }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .file-info {
-            margin-top: 15px;
-            color: #666;
-            font-style: italic;
-        }
-        
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            .header {
-                padding: 30px 20px;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .content {
-                padding: 30px 20px;
-            }
-        }
-
-        .audio-container {
-            margin: 20px 0;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 5px;
-        }
-        audio {
-            width: 100%;
-            margin: 10px 0;
-        }
-        .download-link {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 8px 15px;
-            background: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-        }
-        .scene-overview {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-            font-size: 1.1em;
-            line-height: 1.5;
-        }
-
-        .image-preview {
-            margin: 20px 0;
-        }
-        .preview-image {
-            max-width: 100%;
-            height: auto;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-    </style>
+    <title>Book Narrator - Picture Books & Images</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Book Narrator</h1>
-            <p>Transform your book pages into immersive audio stories with AI</p>
+            <h1>📚 Book Narrator</h1>
+            <p>Transform your book pages and picture books into immersive audio stories with AI</p>
         </div>
         
         <div class="content">
+            {% if not pdf_results and not image_path %}
+            <div class="feature-highlight">
+                <h3>🎨 New! PDF Picture Book Support</h3>
+                <p>Upload entire children's picture books in PDF format for complete narration of every page!</p>
+                <div class="supported-formats">
+                    <strong>Supported:</strong> Images (JPG, PNG, GIF, BMP, WebP) • PDF Picture Books
+                </div>
+            </div>
+
             <div class="upload-section">
+                <div class="upload-options">
+                    <div class="upload-option" id="imageOption">
+                        <span class="icon">🖼️</span>
+                        <h3>Single Image</h3>
+                        <p>Upload a single book page or illustration for AI description and narration</p>
+                    </div>
+                    <div class="upload-option" id="pdfOption">
+                        <span class="icon">📖</span>
+                        <h3>Picture Book PDF</h3>
+                        <p>Upload a complete children's picture book PDF for page-by-page narration</p>
+                    </div>
+                </div>
+
                 <form action="/process" method="post" enctype="multipart/form-data" id="uploadForm">
                     <div class="file-upload">
-                        <input type="file" name="image" accept="image/*" required id="fileInput">
-                        <div class="upload-button">
-                            📷 Choose Book Page Image
+                        <input type="file" name="image" accept="image/*,.pdf" required id="fileInput">
+                        <div class="upload-button" id="uploadButton">
+                            📷 Choose File
                         </div>
                     </div>
                     <div class="file-info" id="fileInfo"></div>
                     <br>
-                    <button type="submit" class="process-button">✨ Generate Narration</button>
+                    <button type="submit" class="process-button" id="processButton" disabled>✨ Generate Narration</button>
                 </form>
                 
                 <div class="loading" id="loading">
                     <div class="spinner"></div>
-                    <p>Processing your image and creating narration...</p>
+                    <div class="processing-message" id="processingMessage">
+                        Processing your file and creating narration...
+                    </div>
                 </div>
             </div>
+            {% endif %}
+
+            <!-- PDF Results Section -->
+            {% if pdf_results %}
+            <div class="pdf-results">
+                <div class="pdf-header">
+                    <h2>{{ pdf_results.pdf_name }}</h2>
+                    <div class="pdf-stats">
+                        <div class="stat-item">
+                            <span class="stat-number">{{ pdf_results.total_pages }}</span>
+                            <span class="stat-label">Total Pages</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">{{ pdf_results.pages|length }}</span>
+                            <span class="stat-label">Narrated Pages</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="navigation-controls">
+                    <strong>📖 Jump to Page:</strong>
+                    {% for page in pdf_results.pages %}
+                    <a href="#page-{{ page.page_number }}" class="nav-button">{{ page.page_number }}</a>
+                    {% endfor %}
+                </div>
+
+                <div class="pdf-pages">
+                    {% for page in pdf_results.pages %}
+                    <div class="pdf-page" id="page-{{ page.page_number }}">
+                        <div class="page-header">
+                            📄 Page {{ page.page_number }}
+                        </div>
+                        <div class="page-content">
+                            {% if page.image_url %}
+                            <div class="page-image">
+                                <img src="{{ page.image_url }}" alt="Page {{ page.page_number }}" loading="lazy">
+                            </div>
+                            {% endif %}
+
+                            {% if page.description %}
+                            <div class="page-description">
+                                {{ page.description }}
+                            </div>
+                            {% endif %}
+
+                            {% if page.audio_url %}
+                            <div class="page-audio">
+                                <h4>🎵 Audio Narration</h4>
+                                <audio controls preload="metadata">
+                                    <source src="{{ page.audio_url }}" type="audio/mpeg">
+                                    Your browser does not support the audio element.
+                                </audio>
+                                <div class="audio-controls">
+                                    <a href="{{ page.audio_url }}" download class="download-link">
+                                        📥 Download Audio
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="back-to-upload">
+                    <a href="/" class="back-button">
+                        🔄 Process Another Book
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Single Image Results Section -->
+            {% if image_path and file_type == 'image' %}
             <div class="section">
-                {% if image_path %}
                 <div class="image-preview">
-                    <h2>Image Preview:</h2>
+                    <h2>Image Preview</h2>
                     <img src="{{ image_path }}" alt="Uploaded image" class="preview-image">
                 </div>
-                {% endif %}
             </div>
 
             <div class="section">
@@ -330,52 +153,20 @@
                         Your browser does not support the audio element.
                     </audio>
                     <div class="audio-controls">
-                        <a href="{{ audio_path }}" download class="download-btn">Download Audio</a>
+                        <a href="{{ audio_path }}" download class="download-link">📥 Download Audio</a>
                     </div>
                 </div>
                 {% endif %}
             </div>
+
+            <div class="back-to-upload">
+                <a href="/" class="back-button">
+                    🔄 Process Another Image
+                </a>
+            </div>
+            {% endif %}
         </div>
     </div>
-
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const fileInfo = document.getElementById('fileInfo');
-        const uploadForm = document.getElementById('uploadForm');
-        const loading = document.getElementById('loading');
-        
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                fileInfo.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-            }
-        });
-        
-        uploadForm.addEventListener('submit', function(e) {
-            if (fileInput.files.length > 0) {
-                loading.style.display = 'block';
-                document.querySelector('.upload-section form').style.display = 'none';
-            }
-        });
-        
-        // Add some interactive animations
-        document.addEventListener('DOMContentLoaded', function() {
-            const sections = document.querySelectorAll('.section');
-            sections.forEach((section, index) => {
-                section.style.animationDelay = `${index * 0.2}s`;
-            });
-        });
-        
-        // Add error handling for audio playback
-        document.addEventListener('DOMContentLoaded', function() {
-            const audioElement = document.querySelector('audio');
-            if (audioElement) {
-                audioElement.onerror = function() {
-                    console.error('Error loading audio:', audioElement.error);
-                    alert('Error loading audio. Please try downloading the file instead.');
-                };
-            }
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </body>
 </html>

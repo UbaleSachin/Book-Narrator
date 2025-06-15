@@ -8,7 +8,6 @@ langchain_community
 langchain
 
 transformers
---find-links https://download.pytorch.org/whl/torch_stable.html
 torch
 accelerate
 
@@ -17,3 +16,5 @@ gTTS
 flask
 werkzeug
 gunicorn
+fitz
+pymupdf
