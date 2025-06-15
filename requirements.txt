@@ -16,5 +16,4 @@ gTTS
 flask
 werkzeug
 gunicorn
-fitz
 pymupdf>=1.22.3
