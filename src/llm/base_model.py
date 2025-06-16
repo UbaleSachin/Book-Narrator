@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 class ImageDescriber:
-    """Class to handle image description using API calls (Groq, OpenAI, etc.)"""
+    """Class to handle image description using API calls (Groq, OpenAI, Gemini, etc.)"""
     
     def __init__(self, audio_folder=None):
         """Initialize the API-based image describer."""
@@ -27,13 +27,14 @@ class ImageDescriber:
         # API configurations
         self.groq_api_key = os.getenv('GROQ_API_KEY')
         self.openai_api_key = os.getenv('OPENAI_API_KEY')
+        self.gemini_api_key = os.getenv('GEMINI_API_KEY')
         
         # Available API providers and models
         self.api_providers = {
             'groq': {
                 'base_url': 'https://api.groq.com/openai/v1',
                 'models': [
-                    'meta-llama/llama-4-maverick-17b-128e-instruct'
+                    'meta-llama/llama-4-scout-17b-16e-instruct'
                 ],
                 'api_key': self.groq_api_key
             },
@@ -45,24 +46,34 @@ class ImageDescriber:
                     'gpt-4-vision-preview'  # Fallback
                 ],
                 'api_key': self.openai_api_key
+            },
+            'gemini': {
+                'base_url': 'https://generativelanguage.googleapis.com/v1beta',
+                'models': [
+                    'gemini-2.0-flash',     # Latest multimodal model     # Faster option
+                ],
+                'api_key': self.gemini_api_key
             }
         }
         
         # Current provider and model
-        self.current_provider = 'groq'  # Default to Groq (cheaper)
+        self.current_provider = 'gemini'  # Default to Gemini (good balance of cost/quality)
         self.current_model_index = 0
         
         # Determine which provider to use based on available API keys
-        if not self.groq_api_key and self.openai_api_key:
+        if not self.gemini_api_key and self.groq_api_key:
+            self.current_provider = 'groq'
+        elif not self.gemini_api_key and not self.groq_api_key and self.openai_api_key:
             self.current_provider = 'openai'
-        elif not self.groq_api_key and not self.openai_api_key:
-            raise ValueError("Either GROQ_API_KEY or OPENAI_API_KEY must be set in environment variables")
+        elif not any([self.gemini_api_key, self.groq_api_key, self.openai_api_key]):
+            raise ValueError("At least one API key must be set: GEMINI_API_KEY, GROQ_API_KEY, or OPENAI_API_KEY")
         
         # Usage tracking
         self.usage_file = 'api_usage_tracking.json'
         self.daily_limits = {
-            'groq': 14400,  # Groq free tier: 14,400 requests/day
-            'openai': 1000   # Conservative limit for OpenAI
+            'groq': 14400,   # Groq free tier: 14,400 requests/day
+            'openai': 1000,  # Conservative limit for OpenAI
+            'gemini': 1500   # Gemini free tier: 1,500 requests/day
         }
         self.usage_data = self._load_usage_data()
         
@@ -165,8 +176,92 @@ class ImageDescriber:
         except:
             return 'jpeg'  # Default fallback
 
+    def _get_mime_type(self, image_format: str) -> str:
+        """Get MIME type from image format."""
+        mime_types = {
+            'jpeg': 'image/jpeg',
+            'jpg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'bmp': 'image/bmp'
+        }
+        return mime_types.get(image_format.lower(), 'image/jpeg')
+
+    def _make_gemini_api_call(self, image_path: str, model: str) -> Optional[str]:
+        """Make API call to Gemini for image description."""
+        try:
+            # Encode image
+            image_base64 = self._encode_image_to_base64(image_path)
+            if not image_base64:
+                return None
+            
+            image_format = self._get_image_format(image_path)
+            mime_type = self._get_mime_type(image_format)
+            
+            # Prepare the prompt
+            prompt = """Please provide a detailed description of this image. Structure your response as follows:
+
+🖼️ Scene Overview:
+[Provide a clear, concise description of what you see in the image]
+."""
+
+            # Prepare request payload for Gemini
+            url = f"{self.api_providers['gemini']['base_url']}/models/{model}:generateContent"
+            params = {'key': self.gemini_api_key}
+            
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": prompt
+                            },
+                            {
+                                "inline_data": {
+                                    "mime_type": mime_type,
+                                    "data": image_base64
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            
+            # Make API request
+            response = requests.post(url, params=params, headers=headers, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'candidates' in result and len(result['candidates']) > 0:
+                    content = result['candidates'][0]['content']
+                    if 'parts' in content and len(content['parts']) > 0:
+                        description = content['parts'][0]['text']
+                        
+                        # Update usage tracking
+                        self._update_api_usage('gemini', model, 1)
+                        
+                        return description
+                else:
+                    logger.error(f"Unexpected Gemini response format: {result}")
+                    return None
+            else:
+                logger.error(f"Gemini API call failed: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error making Gemini API call: {str(e)}")
+            return None
+
     def _make_api_call(self, image_path: str, provider: str, model: str) -> Optional[str]:
         """Make API call to describe image."""
+        if provider == 'gemini':
+            return self._make_gemini_api_call(image_path, model)
+        
         try:
             provider_config = self.api_providers[provider]
             
@@ -183,19 +278,7 @@ class ImageDescriber:
 🖼️ Scene Overview:
 [Provide a clear, concise description of what you see in the image]
 
-👥 Subjects:
-[Describe any people, animals, or main objects in the image]
-
-🎨 Visual Details:
-[Describe colors, lighting, composition, and artistic elements]
-
-📝 Context & Setting:
-[Describe the location, environment, or setting]
-
-🔍 Notable Details:
-[Point out any interesting or unique elements in the image]
-
-Please be descriptive but concise, focusing on the most important visual elements."""
+"""
 
             # Prepare request payload
             if provider == 'groq':
@@ -283,13 +366,17 @@ Please be descriptive but concise, focusing on the most important visual element
             self.current_model_index += 1
             return True
         
-        # Try switching provider
-        if self.current_provider == 'groq' and self.openai_api_key:
-            self.current_provider = 'openai'
-            self.current_model_index = 0
-            return True
-        elif self.current_provider == 'openai' and self.groq_api_key:
-            self.current_provider = 'groq'
+        # Try switching provider based on priority: gemini -> groq -> openai
+        available_providers = []
+        if self.gemini_api_key and self.current_provider != 'gemini':
+            available_providers.append('gemini')
+        if self.groq_api_key and self.current_provider != 'groq':
+            available_providers.append('groq')
+        if self.openai_api_key and self.current_provider != 'openai':
+            available_providers.append('openai')
+        
+        if available_providers:
+            self.current_provider = available_providers[0]
             self.current_model_index = 0
             return True
         
@@ -437,7 +524,7 @@ if __name__ == "__main__":
     test_image_path = "path_to_your_image_file.jpg"  # Replace with actual image path
     
     try:
-        describer = APIImageDescriber(audio_folder="./audio_output")
+        describer = ImageDescriber(audio_folder="./audio_output")
         
         # Show available providers
         print("Available Providers:")
@@ -480,4 +567,7 @@ if __name__ == "__main__":
             
     except Exception as e:
         print(f"Error initializing describer: {str(e)}")
-        print("Make sure to set GROQ_API_KEY or OPENAI_API_KEY in your .env file")
+        print("Make sure to set at least one API key in your .env file:")
+        print("- GEMINI_API_KEY")
+        print("- GROQ_API_KEY")
+        print("- OPENAI_API_KEY")

@@ -16,5 +16,5 @@ gTTS
 flask
 werkzeug
 gunicorn
-pymupdf==1.21.1
-pymupdf-fonts==1.0.5
+pymupdf
+pymupdf-fonts
