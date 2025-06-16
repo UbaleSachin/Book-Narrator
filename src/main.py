@@ -652,7 +652,7 @@ Examples:
                        help='Path to PDF file to process')
     parser.add_argument('--web', action='store_true', 
                        help='Run web interface')
-    parser.add_argument('--host', type=str, default='127.0.0.1',
+    parser.add_argument('--host', type=str, default='0.0.0.0',
                        help='Host address for web server (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=5000,
                        help='Port for web server (default: 5000)')
