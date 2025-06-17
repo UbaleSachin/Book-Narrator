@@ -10,3 +10,4 @@ werkzeug
 gunicorn
 pymupdf
 pymupdf-fonts
+pyttsx3
