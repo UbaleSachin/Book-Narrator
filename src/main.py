@@ -163,16 +163,25 @@ def process_image(image_path: str, audio_folder: str = None):
         # Validate image first
         if not ImageProcessor.validate_image(image_path):
             logger.error(f"Invalid image file: {image_path}")
-            return None
+            return {'error': 'Invalid image file'}
             
         describer = ImageDescriber(audio_folder=audio_folder)
         result = describer.describe_image(image_path, narrate=True)
         
-        return result
+        if result and 'error' not in result:
+            # Verify audio file was created
+            if 'audio_path' in result and not os.path.exists(result['audio_path']):
+                logger.warning("Audio generation failed, returning description only")
+                result['audio_path'] = None
+                result['audio_filename'] = None
+            return result
+        else:
+            logger.error("Failed to generate description")
+            return {'error': 'Failed to process image'}
             
     except Exception as e:
         logger.error(f"Error processing image {image_path}: {str(e)}")
-        return None
+        return {'error': str(e)}
 
 def process_pdf_book(pdf_path: str, output_folder: str, audio_folder: str = None):
     """
