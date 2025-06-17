@@ -31,4 +31,4 @@ ENV FLASK_ENV=production
 EXPOSE 5000
 
 # Start command
-CMD gunicorn --bind 0.0.0.0:$PORT --workers=4 --threads=4 --timeout=120 src.main:app
+CMD gunicorn --bind 0.0.0.0:$PORT --workers=2 --threads=4 --timeout=300 src.main:app

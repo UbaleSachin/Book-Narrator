@@ -15,10 +15,8 @@ from werkzeug.exceptions import RequestEntityTooLarge
 # Replace the fitz import with:
 try:
     import fitz  # PyMuPDF
-except ImportError:
-    print("Error: PyMuPDF not installed correctly")
-    print("Try: pip install --upgrade PyMuPDF==1.21.1 pymupdf-fonts==1.0.5")
-    exit(1)
+except ImportError as e:
+    raise ImportError("PyMuPDF not installed correctly. Install it with `pip install pymupdf`") from e
 from PIL import Image
 import io
 import json
