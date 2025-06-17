@@ -50,7 +50,9 @@ class ImageDescriber:
             'gemini': {
                 'base_url': 'https://generativelanguage.googleapis.com/v1beta',
                 'models': [
-                    'gemini-2.0-flash',     # Latest multimodal model     # Faster option
+                    'gemini-2.0-flash',     # Latest multimodal model
+                    'gemini-1.5-pro',      # High-quality option
+                    'gemini-1.5-flash'     # Faster option
                 ],
                 'api_key': self.gemini_api_key
             }
@@ -204,7 +206,8 @@ class ImageDescriber:
 
 🖼️ Scene Overview:
 [Provide a clear, concise description of what you see in the image]
-."""
+
+Please be descriptive but concise, focusing on the most important visual elements."""
 
             # Prepare request payload for Gemini
             url = f"{self.api_providers['gemini']['base_url']}/models/{model}:generateContent"
@@ -278,7 +281,7 @@ class ImageDescriber:
 🖼️ Scene Overview:
 [Provide a clear, concise description of what you see in the image]
 
-"""
+Please be descriptive but concise, focusing on the most important visual elements."""
 
             # Prepare request payload
             if provider == 'groq':
@@ -406,21 +409,56 @@ class ImageDescriber:
                 if description:
                     # Extract scene overview for narration
                     scene_overview = ''
-                    if '🖼️ Scene Overview:' in description:
+                    
+                    # Try different patterns for scene overview
+                    scene_patterns = [
+                        '🖼️ Scene Overview:',
+                        '🖼️ **Scene Overview:**',
+                        'Scene Overview:',
+                        '**Scene Overview:**'
+                    ]
+                    
+                    found_pattern = None
+                    for pattern in scene_patterns:
+                        if pattern in description:
+                            found_pattern = pattern
+                            break
+                    
+                    if found_pattern:
                         lines = description.split('\n')
                         in_overview = False
                         overview_lines = []
                         
                         for line in lines:
-                            if '🖼️ Scene Overview:' in line:
+                            line_stripped = line.strip()
+                            
+                            # Check if this line contains the pattern
+                            if found_pattern in line:
                                 in_overview = True
+                                # Extract text after the pattern on the same line
+                                after_pattern = line.split(found_pattern, 1)
+                                if len(after_pattern) > 1 and after_pattern[1].strip():
+                                    overview_lines.append(after_pattern[1].strip())
                                 continue
-                            elif line.startswith(('👥', '🎨', '📝', '🔍')) and in_overview:
+                            
+                            # Check if we've hit the next section
+                            elif (line_stripped.startswith(('👥', '🎨', '📝', '🔍', '**👥', '**🎨', '**📝', '**🔍')) 
+                                  and in_overview):
                                 break
-                            elif in_overview and line.strip():
-                                overview_lines.append(line.strip())
+                            
+                            # Add line if we're in the overview section
+                            elif in_overview and line_stripped:
+                                overview_lines.append(line_stripped)
                         
                         scene_overview = ' '.join(overview_lines)
+                    
+                    # Fallback: if no structured format found, use first few sentences
+                    if not scene_overview and description:
+                        sentences = description.replace('\n', ' ').split('.')
+                        if len(sentences) >= 2:
+                            scene_overview = '. '.join(sentences[:2]) + '.'
+                        elif sentences[0]:
+                            scene_overview = sentences[0] + '.'
                     
                     result = {
                         'description': description,
@@ -431,14 +469,58 @@ class ImageDescriber:
                     }
                     
                     # Generate audio narration if requested
-                    if narrate and scene_overview:
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        filename = f"narration_{timestamp}.mp3"
-                        audio_path = os.path.join(self.audio_folder, filename)
-                        
-                        os.makedirs(os.path.dirname(audio_path), exist_ok=True)
-                        self.narrator.narrate(scene_overview, audio_path)
-                        result['audio_path'] = audio_path
+                    if narrate:
+                        if scene_overview:
+                            print(f"Scene overview extracted: {scene_overview[:100]}...")
+                            
+                            # Add microseconds to timestamp for better uniqueness
+                            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                            filename = f"narration_{timestamp}.mp3"
+                            audio_path = os.path.join(self.audio_folder, filename)
+                            
+                            # Ensure directory exists
+                            os.makedirs(os.path.dirname(audio_path), exist_ok=True)
+                            
+                            # Add retry logic for audio generation
+                            max_audio_retries = 3
+                            audio_success = False
+                            
+                            for audio_attempt in range(max_audio_retries):
+                                try:
+                                    print(f"Generating audio narration (attempt {audio_attempt + 1}/{max_audio_retries})...")
+                                    
+                                    # Add small delay to prevent resource conflicts
+                                    if audio_attempt > 0:
+                                        time.sleep(1)
+                                    
+                                    self.narrator.narrate(scene_overview, audio_path)
+                                    
+                                    # Verify file was created and has content
+                                    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                                        result['audio_path'] = audio_path
+                                        print(f"Audio narration saved to: {audio_path}")
+                                        audio_success = True
+                                        break
+                                    else:
+                                        print(f"Audio file not created or empty on attempt {audio_attempt + 1}")
+                                        
+                                except Exception as e:
+                                    print(f"Audio generation attempt {audio_attempt + 1} failed: {e}")
+                                    
+                                    # Clean up failed file if it exists
+                                    if os.path.exists(audio_path):
+                                        try:
+                                            os.remove(audio_path)
+                                        except:
+                                            pass
+                            
+                            if not audio_success:
+                                print("Failed to generate audio narration after multiple attempts")
+                                result['audio_error'] = 'Audio generation failed after retries'
+                        else:
+                            print("No scene overview found for audio narration")
+                            print(f"Description preview: {description[:200]}...")
+                            result['audio_error'] = 'No scene overview extracted'
                     
                     return result
                 else:
