@@ -21,7 +21,7 @@ except ImportError as e:
 from PIL import Image
 import io
 import json
-import threading
+#import threading
 
 # Import your custom modules
 try:
@@ -75,6 +75,22 @@ def is_pdf_file(filename):
     """Check if the uploaded file is a PDF."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in PDF_EXTENSIONS
+
+def create_gunicorn_config():
+    """Create gunicorn configuration for cloud deployment."""
+    config = """
+# gunicorn.conf.py
+bind = "0.0.0.0:8000"
+workers = 1
+worker_class = "sync"
+worker_connections = 1000
+timeout = 300  # 5 minutes
+keepalive = 2
+max_requests = 100
+max_requests_jitter = 10
+preload_app = True
+"""
+    return config
 
 class PDFProcessor:
     """Class to handle PDF processing and image extraction with cloud deployment optimizations."""
@@ -214,7 +230,7 @@ def process_image(image_path: str, audio_folder: str = None):
         logger.error(f"Error processing image {image_path}: {str(e)}")
         return {'error': str(e)}
 
-def process_pdf_book(pdf_path: str, output_folder: str, audio_folder: str = None, max_pages: int = 20, batch_size: int = 2):
+def process_pdf_book(pdf_path: str, output_folder: str, audio_folder: str = None, max_pages: int = 10, batch_size: int = 1):
     """
     Process a PDF book and generate narrations for each page with cloud deployment optimizations.
     
@@ -248,20 +264,40 @@ def process_pdf_book(pdf_path: str, output_folder: str, audio_folder: str = None
             'pages': []
         }
         
-        # Process images in batches
-        for batch_start in range(0, len(image_paths), batch_size):
-            batch_end = min(batch_start + batch_size, len(image_paths))
-            batch_images = image_paths[batch_start:batch_end]
-            
-            logger.info(f"Processing batch {batch_start//batch_size + 1}: pages {batch_start + 1} to {batch_end}")
-            
-            # Process batch with timeout and error handling
-            batch_results = process_image_batch(batch_images, audio_folder, batch_start)
-            results['pages'].extend(batch_results)
-            
-            # Clean up after each batch
-            gc.collect()
-            time.sleep(1)  # Brief pause between batches
+        # Process images one by one for better stability
+        for i, image_path in enumerate(image_paths):
+            try:
+                logger.info(f"Processing page {i + 1}/{len(image_paths)}")
+                
+                # Check if page has meaningful content
+                if not PDFProcessor.has_meaningful_content(image_path):
+                    logger.info(f"Skipping page {i + 1} - appears to be blank")
+                    continue
+                
+                # Process the page image
+                result = process_image_with_retry(image_path, audio_folder)
+                
+                if result and 'error' not in result:
+                    page_result = {
+                        'page_number': i + 1,
+                        'image_path': image_path,
+                        'image_filename': os.path.basename(image_path),
+                        'description': result.get('description', ''),
+                        'audio_path': result.get('audio_path', ''),
+                        'audio_filename': os.path.basename(result.get('audio_path', '')) if result.get('audio_path') else ''
+                    }
+                    results['pages'].append(page_result)
+                    logger.info(f"Successfully processed page {i + 1}")
+                else:
+                    logger.warning(f"Failed to process page {i + 1}: {result.get('error', 'Unknown error')}")
+                
+                # Clean up and brief pause between pages
+                gc.collect()
+                time.sleep(0.5)
+                
+            except Exception as e:
+                logger.error(f"Error processing page {i + 1}: {str(e)}")
+                continue
         
         logger.info(f"PDF processing complete. Processed {len(results['pages'])} pages")
         return results
@@ -272,7 +308,7 @@ def process_pdf_book(pdf_path: str, output_folder: str, audio_folder: str = None
     
 def process_image_batch(image_paths: list, audio_folder: str = None, batch_offset: int = 0):
     """
-    Process a batch of images with error handling and timeouts.
+    Process a batch of images with error handling for cloud deployment.
     
     Args:
         image_paths (list): List of image paths to process
@@ -295,8 +331,8 @@ def process_image_batch(image_paths: list, audio_folder: str = None, batch_offse
                 logger.info(f"Skipping page {page_num} - appears to be blank")
                 continue
             
-            # Process the page image with timeout
-            result = process_image_with_timeout(image_path, audio_folder, timeout=120)
+            # Process the page image with retry logic
+            result = process_image_with_retry(image_path, audio_folder)
             
             if result and 'error' not in result:
                 page_result = {
@@ -318,80 +354,60 @@ def process_image_batch(image_paths: list, audio_folder: str = None, batch_offse
     
     return batch_results
 
-def process_image_with_timeout(image_path: str, audio_folder: str = None, timeout: int = 120):
+def process_image_with_retry(image_path: str, audio_folder: str = None):
     """
-    Process a single image with timeout for cloud deployment.
+    Process a single image with retry logic for cloud deployment.
     
     Args:
         image_path (str): Path to the image file
         audio_folder (str): Directory to save audio files
-        timeout (int): Timeout in seconds
         
     Returns:
         dict: Processing result or error
     """
-    def process_image_worker():
-        try:
-            logger.info(f"Processing image: {image_path}")
-            
-            # Validate image first
-            if not ImageProcessor.validate_image(image_path):
-                logger.error(f"Invalid image file: {image_path}")
-                return {'error': 'Invalid image file'}
-            
-            # Initialize describer with retry logic
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    describer = ImageDescriber(audio_folder=audio_folder)
-                    result = describer.describe_image(image_path, narrate=True)
-                    
-                    if result and 'error' not in result:
-                        # Verify audio file was created
-                        if 'audio_path' in result and result['audio_path'] and not os.path.exists(result['audio_path']):
-                            logger.warning("Audio generation failed, returning description only")
-                            result['audio_path'] = None
-                            result['audio_filename'] = None
-                        return result
-                    else:
-                        if attempt < max_retries - 1:
-                            logger.warning(f"Attempt {attempt + 1} failed, retrying...")
-                            time.sleep(5)  # Wait before retry
-                            continue
-                        else:
-                            logger.error("All attempts failed to generate description")
-                            return {'error': 'Failed to process image after multiple attempts'}
-                            
-                except Exception as e:
+    try:
+        logger.info(f"Processing image: {image_path}")
+        
+        # Validate image first
+        if not ImageProcessor.validate_image(image_path):
+            logger.error(f"Invalid image file: {image_path}")
+            return {'error': 'Invalid image file'}
+        
+        # Initialize describer with retry logic
+        max_retries = 2  # Reduced retries for cloud
+        for attempt in range(max_retries):
+            try:
+                describer = ImageDescriber(audio_folder=audio_folder)
+                result = describer.describe_image(image_path, narrate=True)
+                
+                if result and 'error' not in result:
+                    # Verify audio file was created
+                    if 'audio_path' in result and result['audio_path'] and not os.path.exists(result['audio_path']):
+                        logger.warning("Audio generation failed, returning description only")
+                        result['audio_path'] = None
+                        result['audio_filename'] = None
+                    return result
+                else:
                     if attempt < max_retries - 1:
-                        logger.warning(f"Attempt {attempt + 1} failed with error: {str(e)}, retrying...")
-                        time.sleep(5)
+                        logger.warning(f"Attempt {attempt + 1} failed, retrying...")
+                        time.sleep(2)  # Reduced wait time
                         continue
                     else:
-                        logger.error(f"Final attempt failed: {str(e)}")
-                        return {'error': str(e)}
+                        logger.error("All attempts failed to generate description")
+                        return {'error': 'Failed to process image after multiple attempts'}
                         
-        except Exception as e:
-            logger.error(f"Error processing image {image_path}: {str(e)}")
-            return {'error': str(e)}
-    
-    # Use threading for timeout control
-    result_container = {'result': None, 'completed': False}
-    
-    def worker():
-        result_container['result'] = process_image_worker()
-        result_container['completed'] = True
-    
-    thread = threading.Thread(target=worker)
-    thread.daemon = True
-    thread.start()
-    thread.join(timeout=timeout)
-    
-    if result_container['completed']:
-        return result_container['result']
-    else:
-        logger.error(f"Image processing timed out after {timeout} seconds")
-        return {'error': f'Processing timed out after {timeout} seconds'}
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Attempt {attempt + 1} failed with error: {str(e)}, retrying...")
+                    time.sleep(2)
+                    continue
+                else:
+                    logger.error(f"Final attempt failed: {str(e)}")
+                    return {'error': str(e)}
+                    
+    except Exception as e:
+        logger.error(f"Error processing image {image_path}: {str(e)}")
+        return {'error': str(e)}
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -448,20 +464,20 @@ def process():
                 
                 # Check file size for cloud deployment
                 file_size = os.path.getsize(filepath)
-                max_size = 25 * 1024 * 1024  # 25MB limit for cloud
+                max_size = 20 * 1024 * 1024  # 20MB limit for cloud
                 
                 if file_size > max_size:
-                    flash('PDF file too large for cloud processing. Please upload a smaller file (max 25MB).')
+                    flash('PDF file too large for cloud processing. Please upload a smaller file (max 20MB).')
                     os.remove(filepath)  # Clean up
                     return redirect(url_for('index'))
                 
-                # Process PDF with limits for cloud deployment
+                # Process PDF with strict limits for cloud deployment
                 results = process_pdf_book(
                     filepath, 
                     app.config['PDF_IMAGES_FOLDER'], 
                     audio_folder=app.config['AUDIO_FOLDER'],
-                    max_pages=15,  # Limit pages for cloud
-                    batch_size=2   # Process in smaller batches
+                    max_pages=8,   # Further reduced for stability
+                    batch_size=1   # Process one at a time
                 )
                 
                 # Clean up uploaded PDF after processing
@@ -493,15 +509,15 @@ def process():
                 # Check image size for cloud deployment
                 try:
                     with Image.open(filepath) as img:
-                        if img.width > 2000 or img.height > 2000:
+                        if img.width > 1500 or img.height > 1500:
                             # Resize large images
-                            img.thumbnail((2000, 2000), Image.Resampling.LANCZOS)
+                            img.thumbnail((1500, 1500), Image.Resampling.LANCZOS)
                             img.save(filepath, optimize=True)
                 except Exception as e:
                     logger.warning(f"Could not optimize image: {e}")
                 
-                # Process single image with timeout
-                result = process_image_with_timeout(filepath, audio_folder=app.config['AUDIO_FOLDER'], timeout=90)
+                # Process single image with retry logic
+                result = process_image_with_retry(filepath, audio_folder=app.config['AUDIO_FOLDER'])
                 
                 if result and 'error' not in result:
                     # Create URLs for static files
@@ -864,7 +880,7 @@ Examples:
                        help='Path to PDF file to process')
     parser.add_argument('--web', action='store_true', 
                        help='Run web interface')
-    parser.add_argument('--host', type=str, default='127.0.0.1',
+    parser.add_argument('--host', type=str, default='0.0.0.0',
                        help='Host address for web server (default: 127.0.0.1)')
     parser.add_argument('--port', type=int, default=5000,
                        help='Port for web server (default: 5000)')
