@@ -80,7 +80,7 @@ class ImageDescriber:
         self.usage_data = self._load_usage_data()
         
         # Initialize audio narrator
-        self.narrator = AudioNarrator()
+        #self.narrator = AudioNarrator()
         
         print(f"Initialized with provider: {self.current_provider}")
         print(f"Current model: {self.get_current_model()}")
@@ -468,7 +468,7 @@ Please be descriptive but concise, focusing on the most important visual element
                         'model': current_model
                     }
                     
-                    # Generate audio narration if requested
+                    """# Generate audio narration if requested
                     if narrate:
                         if scene_overview:
                             print(f"Scene overview extracted: {scene_overview[:100]}...")
@@ -520,7 +520,7 @@ Please be descriptive but concise, focusing on the most important visual element
                         else:
                             print("No scene overview found for audio narration")
                             print(f"Description preview: {description[:200]}...")
-                            result['audio_error'] = 'No scene overview extracted'
+                            result['audio_error'] = 'No scene overview extracted'"""
                     
                     return result
                 else:
